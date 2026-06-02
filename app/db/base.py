@@ -4,6 +4,4 @@ from sqlalchemy.orm import DeclarativeBase
 
 
 class Base(DeclarativeBase):
-    """От него наследуются модели (например Link); metadata используется в create_all."""
-
     pass
