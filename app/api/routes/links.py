@@ -1,3 +1,5 @@
+"""REST-эндпоинты для создания и просмотра коротких ссылок."""
+
 from fastapi import APIRouter, Depends, HTTPException, Request
 from sqlalchemy.orm import Session
 
@@ -6,10 +8,12 @@ from app.repositories.link_repository import LinkRepository
 from app.schemas.link import LinkCreate, LinkResponse
 from app.services.shortener import generate_short_code
 
+# Итоговый путь: /api/v1/links (префиксы задаются в router.py)
 router = APIRouter(prefix="/links", tags=["Links"])
 
 
 def build_link_response(request: Request, link) -> LinkResponse:
+    """Собирает ответ API: добавляет полный short_url на основе хоста запроса."""
     short_url = str(request.base_url).rstrip("/") + f"/r/{link.short_code}"
     return LinkResponse(
         id=link.id,
@@ -22,11 +26,16 @@ def build_link_response(request: Request, link) -> LinkResponse:
 
 @router.post("", response_model=LinkResponse, status_code=201)
 def create_short_link(payload: LinkCreate, request: Request, db: Session = Depends(get_db)):
+    """
+    Создаёт короткую ссылку.
+    Генерирует случайный код; при коллизии повторяет до 10 раз.
+    """
     repository = LinkRepository(db)
 
     tries = 0
     while tries < 10:
         short_code = generate_short_code()
+        # Код должен быть уникальным в таблице links
         if repository.get_by_code(short_code) is None:
             link = repository.create(original_url=str(payload.original_url), short_code=short_code)
             return build_link_response(request, link)
@@ -37,6 +46,7 @@ def create_short_link(payload: LinkCreate, request: Request, db: Session = Depen
 
 @router.get("", response_model=list[LinkResponse])
 def list_links(request: Request, db: Session = Depends(get_db)):
+    """Возвращает список всех сокращённых ссылок (новые сверху)."""
     repository = LinkRepository(db)
     links = repository.list_all()
     return [build_link_response(request, link) for link in links]
@@ -44,6 +54,7 @@ def list_links(request: Request, db: Session = Depends(get_db)):
 
 @router.get("/{short_code}", response_model=LinkResponse)
 def get_link(short_code: str, request: Request, db: Session = Depends(get_db)):
+    """Возвращает информацию о ссылке по короткому коду (без редиректа)."""
     repository = LinkRepository(db)
     link = repository.get_by_code(short_code)
 
